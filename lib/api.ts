@@ -35,6 +35,8 @@ const constraintMessages: Record<string, string> = {
     "This product still has inventory records. Remove its stock first.",
   order_item_product_id_fkey:
     "This product appears in customer orders and cannot be deleted.",
+  uq_producer_org_name: "A producer with this name already exists.",
+  producer_product_pkey: "This producer already supplies that product.",
 };
 
 interface PgError {

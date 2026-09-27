@@ -11,7 +11,7 @@ type Context = { params: Promise<{ id: string }> };
 // organizations have.
 
 // GET /api/products/101
-// The product plus its stock in each warehouse.
+// The product plus its stock in each warehouse and its suppliers.
 export async function GET(_request: Request, { params }: Context) {
   try {
     const user = await getCurrentUser();
@@ -39,7 +39,23 @@ export async function GET(_request: Request, { params }: Context) {
       [id],
     );
 
-    return Response.json({ ...productResult.rows[0], inventory: inventoryResult.rows });
+    // The other side of the producer_product M:N: who supplies this product.
+    // Active suppliers first, cheapest first.
+    const suppliersResult = await pool.query(
+      `SELECT pr.producer_id, pr.name, pr.status,
+              pp.supply_price, pp.lead_time_days, pp.minimum_order_quantity
+       FROM producer_product pp
+       JOIN producer pr ON pr.producer_id = pp.producer_id
+       WHERE pp.product_id = $1
+       ORDER BY (pr.status = 'ACTIVE') DESC, pp.supply_price, pp.lead_time_days`,
+      [id],
+    );
+
+    return Response.json({
+      ...productResult.rows[0],
+      inventory: inventoryResult.rows,
+      suppliers: suppliersResult.rows,
+    });
   } catch (err) {
     return handleRouteError(err);
   }

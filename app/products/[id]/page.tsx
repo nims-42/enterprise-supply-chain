@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from "@/lib/client-api";
 import { formatDateTime, formatINR } from "@/lib/format";
 import type { ProductDetail } from "@/lib/types";
 import StockBadge from "@/components/StockBadge";
+import ProducerStatusBadge from "@/components/ProducerStatusBadge";
 
 interface LoadResult {
   id: string;
@@ -180,6 +181,48 @@ export default function ProductDetailPage() {
                     />
                   </td>
                   <td className="px-4 py-3 text-slate-500">{formatDateTime(row.last_updated)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 className="mt-8 text-lg font-semibold">Suppliers</h2>
+      {p.suppliers.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-500">
+          No producer supplies this product yet. Add it from a producer&apos;s page.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Producer</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Supply price</th>
+                <th className="px-4 py-3 text-right">Lead time (days)</th>
+                <th className="px-4 py-3 text-right">Min. order</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {p.suppliers.map((s, index) => (
+                <tr key={s.producer_id}>
+                  <td className="px-4 py-3">
+                    <Link href={`/producers/${s.producer_id}`} className="font-medium hover:underline">
+                      {s.name}
+                    </Link>
+                    {/* The API sorts active suppliers first, cheapest first */}
+                    {index === 0 && s.status === "ACTIVE" && (
+                      <span className="ml-2 text-xs text-emerald-700">best price</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ProducerStatusBadge status={s.status} />
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatINR(s.supply_price)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{s.lead_time_days}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{s.minimum_order_quantity}</td>
                 </tr>
               ))}
             </tbody>
