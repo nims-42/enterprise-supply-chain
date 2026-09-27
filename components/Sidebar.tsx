@@ -1,0 +1,63 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+// Modules from the implementation plan. `ready: false` ones are shown
+// greyed out until they are built, so the navigation already reflects the
+// whole system.
+const navItems = [
+  { href: "/", label: "Dashboard", ready: true },
+  { href: "/products", label: "Products", ready: true },
+  { href: "/producers", label: "Producers", ready: false },
+  { href: "/warehouses", label: "Warehouses", ready: false },
+  { href: "/inventory", label: "Inventory", ready: false },
+  { href: "/customers", label: "Customers", ready: false },
+  { href: "/orders", label: "Orders", ready: false },
+  { href: "/shipments", label: "Shipments", ready: false },
+];
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="w-56 shrink-0 border-r border-slate-200 bg-white">
+      <div className="px-5 py-5 border-b border-slate-200">
+        <p className="text-sm font-semibold text-slate-900">Supply Chain</p>
+        <p className="text-xs text-slate-500">Enterprise Management System</p>
+      </div>
+      <nav className="p-3 space-y-1">
+        {navItems.map((item) => {
+          const active =
+            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+
+          if (!item.ready) {
+            return (
+              <span
+                key={item.href}
+                className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-slate-400 cursor-not-allowed"
+              >
+                {item.label}
+                <span className="text-[10px] uppercase tracking-wide">soon</span>
+              </span>
+            );
+          }
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block rounded-md px-3 py-2 text-sm ${
+                active
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
