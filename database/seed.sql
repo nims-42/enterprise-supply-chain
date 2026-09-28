@@ -11,9 +11,6 @@
 --   1  Vertex Electronics Distribution  (IT hardware, Bengaluru)   the main demo
 --   2  GreenLeaf Foods                  (FMCG, Coimbatore)         smaller
 --
--- Every demo user's password is:  Demo@1234
--- (stored only as bcrypt hashes, cost 10; each hash has its own salt)
---
 -- IDs are written explicitly (OVERRIDING SYSTEM VALUE) so queries and the viva
 -- can refer to "product 101" or "order 1008". The identity sequences are moved
 -- past these values at the end so new rows from the app don't collide.
@@ -25,7 +22,7 @@ BEGIN;
 
 TRUNCATE shipment, transport, order_item, customer_order, customer,
          inventory, warehouse, producer_product, product, producer,
-         app_user, role, organization
+         organization
 RESTART IDENTITY CASCADE;
 
 
@@ -40,43 +37,6 @@ OVERRIDING SYSTEM VALUE VALUES
 (2, 'GreenLeaf Foods', 'FMCG / Food Products',
     '12 Avinashi Road, Peelamedu, Coimbatore 641004',
     'hello@greenleaf-foods.example', '+91 422 256 8800', '2026-03-02 09:00+05:30');
-
-
--- -----------------------------------------------------------------------------
--- ROLES (global, shared by all organizations)
--- -----------------------------------------------------------------------------
-INSERT INTO role (role_id, role_name) OVERRIDING SYSTEM VALUE VALUES
-(1, 'ADMIN'),
-(2, 'WAREHOUSE_MANAGER'),
-(3, 'SALES_MANAGER'),
-(4, 'STAFF');
-
-
--- -----------------------------------------------------------------------------
--- USERS
--- -----------------------------------------------------------------------------
-INSERT INTO app_user (user_id, organization_id, role_id, name, email, password_hash, created_at)
-OVERRIDING SYSTEM VALUE VALUES
--- Vertex Electronics
-(1, 1, 1, 'Priya Raman',       'priya.raman@vertex-electronics.example',
-    '$2b$10$kKM3gIyP/2jJCSDeCNaab.rgUp7JsaI9EI1MLo.CzYhGKXG3SZTQK', '2026-01-10 09:30+05:30'),
-(2, 1, 2, 'Arjun Mehta',       'arjun.mehta@vertex-electronics.example',
-    '$2b$10$BiRzrQiycLaZK8wj87elXOVZN7DYZBAjz7BepoopqxQFi71PJngrq', '2026-01-12 10:00+05:30'),
-(3, 1, 2, 'Kavitha Sundaram',  'kavitha.s@vertex-electronics.example',
-    '$2b$10$bcYJGOeNi044nkgYkC8zReyX.WCCiwo2ANP/jVCzMD.MA9zJF3TyC', '2026-01-12 10:15+05:30'),
-(4, 1, 3, 'Rohan Iyer',        'rohan.iyer@vertex-electronics.example',
-    '$2b$10$44iCQtDZN7KkbWabJeisS.NOh68ZhoLRr96homZditzy4YPQiGog2', '2026-01-15 11:00+05:30'),
-(5, 1, 4, 'Sneha Kulkarni',    'sneha.k@vertex-electronics.example',
-    '$2b$10$ZJY.slZQQnSWUZ6J40MJF.jaJ5Lgl7Sf7zwwRyIlmu2Si.63BcDK.', '2026-02-01 09:45+05:30'),
--- GreenLeaf Foods
-(6, 2, 1, 'Meera Krishnan',    'meera@greenleaf-foods.example',
-    '$2b$10$P76K06EIVRk7GgMjSSMfiuPtmFB1bF63hAUteeN3nzcbREeJqQ/0a', '2026-03-02 09:30+05:30'),
-(7, 2, 3, 'Vikram Nair',       'vikram@greenleaf-foods.example',
-    '$2b$10$6G95EXkhT0Q9FLCuMyzICuAtzFL4vM/vaa/KvzWSG4fBmGESOlsHm', '2026-03-03 10:00+05:30'),
-(8, 2, 2, 'Lakshmi Prasad',    'lakshmi@greenleaf-foods.example',
-    '$2b$10$F2zKcqtaVO5mdcmP7mq4yur0Ei8WySJXv4Y6C8Bkc7OvlK17Yp5He', '2026-03-03 10:30+05:30'),
-(9, 2, 4, 'Anand Subramaniam', 'anand@greenleaf-foods.example',
-    '$2b$10$CFXDZ3DS.dYUENvXjKckrennj5iLnyYS7cYwMhycjWUurvEeLPqz.', '2026-03-10 09:00+05:30');
 
 
 -- -----------------------------------------------------------------------------
@@ -257,15 +217,14 @@ INSERT INTO producer_product (producer_id, product_id, supply_price, lead_time_d
 
 
 -- -----------------------------------------------------------------------------
--- WAREHOUSES. Pune has no manager on purpose (LEFT JOIN demo).
--- capacity is the number of stock units the warehouse can hold.
+-- WAREHOUSES. capacity is the number of stock units the warehouse can hold.
 -- -----------------------------------------------------------------------------
-INSERT INTO warehouse (warehouse_id, organization_id, name, location, capacity, manager_id, created_at)
+INSERT INTO warehouse (warehouse_id, organization_id, name, location, capacity, created_at)
 OVERRIDING SYSTEM VALUE VALUES
-(1, 1, 'Bengaluru Central DC', 'Whitefield, Bengaluru, Karnataka',         600, 2,    '2026-01-15 09:00+05:30'),
-(2, 1, 'Chennai South DC',     'Sriperumbudur, Chennai, Tamil Nadu',       400, 3,    '2026-01-18 09:00+05:30'),
-(3, 1, 'Pune West Hub',        'Chakan MIDC, Pune, Maharashtra',           250, NULL, '2026-04-01 09:00+05:30'),
-(4, 2, 'Coimbatore Main Godown','SIDCO Kurichi, Coimbatore, Tamil Nadu',   800, 8,    '2026-03-04 09:00+05:30');
+(1, 1, 'Bengaluru Central DC',  'Whitefield, Bengaluru, Karnataka',      600, '2026-01-15 09:00+05:30'),
+(2, 1, 'Chennai South DC',      'Sriperumbudur, Chennai, Tamil Nadu',    400, '2026-01-18 09:00+05:30'),
+(3, 1, 'Pune West Hub',         'Chakan MIDC, Pune, Maharashtra',        250, '2026-04-01 09:00+05:30'),
+(4, 2, 'Coimbatore Main Godown','SIDCO Kurichi, Coimbatore, Tamil Nadu', 800, '2026-03-04 09:00+05:30');
 
 
 -- -----------------------------------------------------------------------------
@@ -366,27 +325,27 @@ OVERRIDING SYSTEM VALUE VALUES
 -- CUSTOMER ORDERS. total_amount starts at 0 and is calculated from the
 -- order items below.
 -- -----------------------------------------------------------------------------
-INSERT INTO customer_order (order_id, organization_id, customer_id, created_by, order_date, expected_date, status)
+INSERT INTO customer_order (order_id, organization_id, customer_id, order_date, expected_date, status)
 OVERRIDING SYSTEM VALUE VALUES
 -- Vertex Electronics
-(1001, 1, 1, 4, '2026-06-05 11:20+05:30', '2026-06-12', 'COMPLETED'),
-(1002, 1, 2, 4, '2026-06-18 15:05+05:30', '2026-06-25', 'COMPLETED'),
-(1003, 1, 3, 5, '2026-07-02 10:40+05:30', '2026-07-10', 'COMPLETED'),
-(1004, 1, 4, 4, '2026-07-15 12:00+05:30', '2026-07-25', 'COMPLETED'),
-(1005, 1, 5, 4, '2026-07-28 16:30+05:30', '2026-08-05', 'CANCELLED'),
-(1006, 1, 6, 5, '2026-08-10 09:50+05:30', '2026-08-18', 'COMPLETED'),
-(1007, 1, 1, 4, '2026-08-22 14:15+05:30', '2026-08-30', 'COMPLETED'),
-(1008, 1, 7, 4, '2026-09-05 11:00+05:30', '2026-09-12', 'PROCESSING'),
-(1009, 1, 5, 4, '2026-09-15 10:10+05:30', '2026-09-29', 'PROCESSING'),
-(1010, 1, 2, 5, '2026-09-19 17:45+05:30', '2026-10-01', 'PROCESSING'),
-(1011, 1, 3, 4, '2026-09-22 13:30+05:30', '2026-09-30', 'CONFIRMED'),
-(1012, 1, 6, 4, '2026-09-24 10:20+05:30', '2026-10-02', 'CONFIRMED'),
-(1013, 1, 1, 5, '2026-09-26 16:00+05:30', '2026-10-05', 'PENDING'),
-(1014, 1, 4, 4, '2026-09-27 11:30+05:30', '2026-10-06', 'PENDING'),
+(1001, 1,  1, '2026-06-05 11:20+05:30', '2026-06-12', 'COMPLETED'),
+(1002, 1,  2, '2026-06-18 15:05+05:30', '2026-06-25', 'COMPLETED'),
+(1003, 1,  3, '2026-07-02 10:40+05:30', '2026-07-10', 'COMPLETED'),
+(1004, 1,  4, '2026-07-15 12:00+05:30', '2026-07-25', 'COMPLETED'),
+(1005, 1,  5, '2026-07-28 16:30+05:30', '2026-08-05', 'CANCELLED'),
+(1006, 1,  6, '2026-08-10 09:50+05:30', '2026-08-18', 'COMPLETED'),
+(1007, 1,  1, '2026-08-22 14:15+05:30', '2026-08-30', 'COMPLETED'),
+(1008, 1,  7, '2026-09-05 11:00+05:30', '2026-09-12', 'PROCESSING'),
+(1009, 1,  5, '2026-09-15 10:10+05:30', '2026-09-29', 'PROCESSING'),
+(1010, 1,  2, '2026-09-19 17:45+05:30', '2026-10-01', 'PROCESSING'),
+(1011, 1,  3, '2026-09-22 13:30+05:30', '2026-09-30', 'CONFIRMED'),
+(1012, 1,  6, '2026-09-24 10:20+05:30', '2026-10-02', 'CONFIRMED'),
+(1013, 1,  1, '2026-09-26 16:00+05:30', '2026-10-05', 'PENDING'),
+(1014, 1,  4, '2026-09-27 11:30+05:30', '2026-10-06', 'PENDING'),
 -- GreenLeaf
-(1015, 2, 9,  7, '2026-09-01 09:30+05:30', '2026-09-04', 'COMPLETED'),
-(1016, 2, 10, 7, '2026-09-20 12:00+05:30', '2026-09-29', 'PROCESSING'),
-(1017, 2, 11, 9, '2026-09-26 10:45+05:30', '2026-09-30', 'CONFIRMED');
+(1015, 2,  9, '2026-09-01 09:30+05:30', '2026-09-04', 'COMPLETED'),
+(1016, 2, 10, '2026-09-20 12:00+05:30', '2026-09-29', 'PROCESSING'),
+(1017, 2, 11, '2026-09-26 10:45+05:30', '2026-09-30', 'CONFIRMED');
 
 
 -- -----------------------------------------------------------------------------
@@ -418,26 +377,42 @@ JOIN product p ON p.product_id = v.product_id;
 
 
 -- -----------------------------------------------------------------------------
--- SHIPMENTS. Order 1003 ships in two parts from two warehouses
--- (Customer_Order 1:N Shipment).
+-- SHIPMENTS, both directions.
+-- OUTBOUND (warehouse -> customer): order 1003 ships in two parts from two
+-- warehouses (Customer_Order 1:N Shipment).
+-- INBOUND (producer -> warehouse): restocking. Producers usually deliver on
+-- their own transport, so transport_id is NULL. Metro Electronics' two late
+-- deliveries are why it gets suspended in the DML section below.
 -- -----------------------------------------------------------------------------
-INSERT INTO shipment (shipment_id, order_id, warehouse_id, transport_id, shipment_date, expected_delivery, actual_delivery, status)
+INSERT INTO shipment (shipment_id, shipment_type, producer_id, warehouse_id, order_id, transport_id,
+                      shipment_date, expected_delivery, actual_delivery, status)
 OVERRIDING SYSTEM VALUE VALUES
-(501, 1001, 1, 1,    '2026-06-06 10:00+05:30', '2026-06-09', '2026-06-08 16:30+05:30', 'DELIVERED'),
-(502, 1002, 2, 3,    '2026-06-19 09:30+05:30', '2026-06-23', '2026-06-22 14:10+05:30', 'DELIVERED'),
-(503, 1003, 1, 2,    '2026-07-03 11:00+05:30', '2026-07-06', '2026-07-05 12:45+05:30', 'DELIVERED'),
-(504, 1003, 2, 3,    '2026-07-04 08:45+05:30', '2026-07-08', '2026-07-09 17:20+05:30', 'DELIVERED'),
-(505, 1004, 1, 2,    '2026-07-16 10:30+05:30', '2026-07-19', '2026-07-18 11:00+05:30', 'DELIVERED'),
-(506, 1006, 2, 3,    '2026-08-11 09:00+05:30', '2026-08-15', '2026-08-17 15:40+05:30', 'DELIVERED'),
-(507, 1007, 1, 1,    '2026-08-23 10:15+05:30', '2026-08-26', '2026-08-26 13:05+05:30', 'DELIVERED'),
-(508, 1008, 2, 3,    '2026-09-06 09:20+05:30', '2026-09-10', NULL,                     'DELAYED'),
-(509, 1009, 1, 1,    '2026-09-25 08:30+05:30', '2026-09-29', NULL,                     'IN_TRANSIT'),
-(510, 1010, 3, 4,    '2026-09-27 12:00+05:30', '2026-10-01', NULL,                     'DISPATCHED'),
-(511, 1011, 1, NULL, NULL,                     '2026-09-30', NULL,                     'PACKED'),
-(512, 1012, 2, NULL, NULL,                     '2026-10-02', NULL,                     'PENDING'),
-(513, 1015, 4, 7,    '2026-09-02 07:30+05:30', '2026-09-04', '2026-09-03 10:15+05:30', 'DELIVERED'),
-(514, 1016, 4, 7,    '2026-09-27 07:00+05:30', '2026-09-29', NULL,                     'IN_TRANSIT'),
-(515, 1017, 4, NULL, NULL,                     '2026-09-30', NULL,                     'PENDING');
+-- outbound: Vertex Electronics
+(501, 'OUTBOUND', NULL, 1, 1001, 1,    '2026-06-06 10:00+05:30', '2026-06-09', '2026-06-08 16:30+05:30', 'DELIVERED'),
+(502, 'OUTBOUND', NULL, 2, 1002, 3,    '2026-06-19 09:30+05:30', '2026-06-23', '2026-06-22 14:10+05:30', 'DELIVERED'),
+(503, 'OUTBOUND', NULL, 1, 1003, 2,    '2026-07-03 11:00+05:30', '2026-07-06', '2026-07-05 12:45+05:30', 'DELIVERED'),
+(504, 'OUTBOUND', NULL, 2, 1003, 3,    '2026-07-04 08:45+05:30', '2026-07-08', '2026-07-09 17:20+05:30', 'DELIVERED'),
+(505, 'OUTBOUND', NULL, 1, 1004, 2,    '2026-07-16 10:30+05:30', '2026-07-19', '2026-07-18 11:00+05:30', 'DELIVERED'),
+(506, 'OUTBOUND', NULL, 2, 1006, 3,    '2026-08-11 09:00+05:30', '2026-08-15', '2026-08-17 15:40+05:30', 'DELIVERED'),
+(507, 'OUTBOUND', NULL, 1, 1007, 1,    '2026-08-23 10:15+05:30', '2026-08-26', '2026-08-26 13:05+05:30', 'DELIVERED'),
+(508, 'OUTBOUND', NULL, 2, 1008, 3,    '2026-09-06 09:20+05:30', '2026-09-10', NULL,                     'DELAYED'),
+(509, 'OUTBOUND', NULL, 1, 1009, 1,    '2026-09-25 08:30+05:30', '2026-09-29', NULL,                     'IN_TRANSIT'),
+(510, 'OUTBOUND', NULL, 3, 1010, 4,    '2026-09-27 12:00+05:30', '2026-10-01', NULL,                     'DISPATCHED'),
+(511, 'OUTBOUND', NULL, 1, 1011, NULL, NULL,                     '2026-09-30', NULL,                     'PACKED'),
+(512, 'OUTBOUND', NULL, 2, 1012, NULL, NULL,                     '2026-10-02', NULL,                     'CREATED'),
+-- outbound: GreenLeaf
+(513, 'OUTBOUND', NULL, 4, 1015, 7,    '2026-09-02 07:30+05:30', '2026-09-04', '2026-09-03 10:15+05:30', 'DELIVERED'),
+(514, 'OUTBOUND', NULL, 4, 1016, 7,    '2026-09-27 07:00+05:30', '2026-09-29', NULL,                     'IN_TRANSIT'),
+(515, 'OUTBOUND', NULL, 4, 1017, NULL, NULL,                     '2026-09-30', NULL,                     'CREATED'),
+-- inbound: Vertex Electronics
+(516, 'INBOUND', 6, 1, NULL, NULL,     '2026-07-28 10:00+05:30', '2026-08-05', '2026-08-14 15:00+05:30', 'DELIVERED'),
+(517, 'INBOUND', 6, 1, NULL, NULL,     '2026-08-12 10:00+05:30', '2026-08-20', '2026-08-27 12:30+05:30', 'DELIVERED'),
+(518, 'INBOUND', 1, 1, NULL, NULL,     '2026-09-18 09:00+05:30', '2026-09-20', '2026-09-20 16:00+05:30', 'DELIVERED'),
+(519, 'INBOUND', 5, 1, NULL, NULL,     '2026-09-19 11:00+05:30', '2026-09-23', '2026-09-25 11:00+05:30', 'DELIVERED'),
+(520, 'INBOUND', 4, 2, NULL, NULL,     '2026-09-26 08:00+05:30', '2026-10-03', NULL,                     'IN_TRANSIT'),
+(521, 'INBOUND', 3, 1, NULL, NULL,     NULL,                     '2026-10-08', NULL,                     'CREATED'),
+-- inbound: GreenLeaf
+(522, 'INBOUND', 7, 4, NULL, NULL,     '2026-09-24 06:00+05:30', '2026-09-25', '2026-09-25 09:30+05:30', 'DELIVERED');
 
 
 -- =============================================================================
@@ -453,16 +428,17 @@ SET total_amount = COALESCE((
     WHERE oi.order_id = o.order_id
 ), 0);
 
--- UPDATE ... FROM: reserve stock for shipments that are still in the warehouse
--- (PENDING or PACKED). Stock for shipments that already left has been
--- deducted from quantity, so it is not reserved any more.
+-- UPDATE ... FROM: reserve stock for OUTBOUND shipments that are still in
+-- the warehouse (CREATED or PACKED). Stock for shipments that already left
+-- has been deducted from quantity, so it is not reserved any more.
 UPDATE inventory i
 SET reserved_quantity = r.reserved
 FROM (
     SELECT s.warehouse_id, oi.product_id, SUM(oi.quantity) AS reserved
     FROM shipment s
     JOIN order_item oi ON oi.order_id = s.order_id
-    WHERE s.status IN ('PENDING', 'PACKED')
+    WHERE s.shipment_type = 'OUTBOUND'
+      AND s.status IN ('CREATED', 'PACKED')
     GROUP BY s.warehouse_id, oi.product_id
 ) r
 WHERE i.warehouse_id = r.warehouse_id
@@ -484,8 +460,6 @@ WHERE producer_id = 4
 -- the app inserts gets a fresh ID instead of a duplicate-key error.
 -- -----------------------------------------------------------------------------
 SELECT setval(pg_get_serial_sequence('organization',   'organization_id'), (SELECT MAX(organization_id) FROM organization));
-SELECT setval(pg_get_serial_sequence('role',           'role_id'),         (SELECT MAX(role_id)         FROM role));
-SELECT setval(pg_get_serial_sequence('app_user',       'user_id'),         (SELECT MAX(user_id)         FROM app_user));
 SELECT setval(pg_get_serial_sequence('producer',       'producer_id'),     (SELECT MAX(producer_id)     FROM producer));
 SELECT setval(pg_get_serial_sequence('product',        'product_id'),      (SELECT MAX(product_id)      FROM product));
 SELECT setval(pg_get_serial_sequence('warehouse',      'warehouse_id'),    (SELECT MAX(warehouse_id)    FROM warehouse));

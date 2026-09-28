@@ -1,19 +1,16 @@
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { handleRouteError, jsonError, parseId, readJson } from "@/lib/api";
 import { addSupplySchema } from "@/lib/validation/producer";
 
 type Context = { params: Promise<{ id: string }> };
 
-// POST /api/producers/1/products   (ADMIN only)
+// POST /api/producers/1/products
 // Body: { product_id, supply_price, lead_time_days, minimum_order_quantity }
 // Adds a row to producer_product: "this producer supplies this product".
 export async function POST(request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can change supply terms.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const producerId = parseId((await params).id);
     if (producerId === null) return jsonError(400, "Invalid producer id.");
 
@@ -41,7 +38,7 @@ export async function POST(request: Request, { params }: Context) {
         input.supply_price,
         input.lead_time_days,
         input.minimum_order_quantity,
-        user.organizationId,
+        organizationId,
       ],
     );
     if (rowCount === 0) return jsonError(404, "Producer or product not found.");

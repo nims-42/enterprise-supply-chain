@@ -1,5 +1,5 @@
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { handleRouteError, jsonError, parseId, readJson } from "@/lib/api";
 import { producerInputSchema } from "@/lib/validation/producer";
 
@@ -10,7 +10,7 @@ type Context = { params: Promise<{ id: string }> };
 // the margin against our selling price.
 export async function GET(_request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid producer id.");
 
@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: Context) {
       `SELECT producer_id, name, email, phone, address, status, created_at
        FROM producer
        WHERE producer_id = $1 AND organization_id = $2`,
-      [id, user.organizationId],
+      [id, organizationId],
     );
     if (producerResult.rowCount === 0) return jsonError(404, "Producer not found.");
 
@@ -39,13 +39,10 @@ export async function GET(_request: Request, { params }: Context) {
   }
 }
 
-// PUT /api/producers/1   (ADMIN only, full update)
+// PUT /api/producers/1   (full update)
 export async function PUT(request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can edit producers.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid producer id.");
 
@@ -58,7 +55,7 @@ export async function PUT(request: Request, { params }: Context) {
        SET name = $3, email = $4, phone = $5, address = $6, status = $7
        WHERE producer_id = $1 AND organization_id = $2
        RETURNING producer_id, name, email, phone, address, status, created_at`,
-      [id, user.organizationId, input.name, input.email, input.phone, input.address, input.status],
+      [id, organizationId, input.name, input.email, input.phone, input.address, input.status],
     );
     if (rowCount === 0) return jsonError(404, "Producer not found.");
 
@@ -68,22 +65,19 @@ export async function PUT(request: Request, { params }: Context) {
   }
 }
 
-// DELETE /api/producers/1   (ADMIN only)
+// DELETE /api/producers/1
 // Its producer_product rows go too (ON DELETE CASCADE in schema.sql).
 // Usually setting the status to INACTIVE is the better choice, because it
 // keeps the supply history.
 export async function DELETE(_request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can delete producers.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid producer id.");
 
     const { rowCount } = await pool.query(
       "DELETE FROM producer WHERE producer_id = $1 AND organization_id = $2",
-      [id, user.organizationId],
+      [id, organizationId],
     );
     if (rowCount === 0) return jsonError(404, "Producer not found.");
 

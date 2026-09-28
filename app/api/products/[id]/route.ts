@@ -1,5 +1,5 @@
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { handleRouteError, jsonError, parseId, readJson } from "@/lib/api";
 import { productInputSchema } from "@/lib/validation/product";
 
@@ -14,7 +14,7 @@ type Context = { params: Promise<{ id: string }> };
 // The product plus its stock in each warehouse and its suppliers.
 export async function GET(_request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid product id.");
 
@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: Context) {
               unit_price, reorder_level, created_at
        FROM product
        WHERE product_id = $1 AND organization_id = $2`,
-      [id, user.organizationId],
+      [id, organizationId],
     );
     if (productResult.rowCount === 0) return jsonError(404, "Product not found.");
 
@@ -61,14 +61,11 @@ export async function GET(_request: Request, { params }: Context) {
   }
 }
 
-// PUT /api/products/101   (ADMIN only)
+// PUT /api/products/101
 // Full update: send every field, same shape as POST.
 export async function PUT(request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can edit products.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid product id.");
 
@@ -85,7 +82,7 @@ export async function PUT(request: Request, { params }: Context) {
                  unit_price, reorder_level, created_at`,
       [
         id,
-        user.organizationId,
+        organizationId,
         input.name,
         input.sku,
         input.description,
@@ -102,21 +99,18 @@ export async function PUT(request: Request, { params }: Context) {
   }
 }
 
-// DELETE /api/products/101   (ADMIN only)
+// DELETE /api/products/101
 // Fails with 409 if the product still has inventory or appears in orders;
 // the foreign keys in schema.sql enforce that, not this code.
 export async function DELETE(_request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can delete products.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const id = parseId((await params).id);
     if (id === null) return jsonError(400, "Invalid product id.");
 
     const { rowCount } = await pool.query(
       "DELETE FROM product WHERE product_id = $1 AND organization_id = $2",
-      [id, user.organizationId],
+      [id, organizationId],
     );
     if (rowCount === 0) return jsonError(404, "Product not found.");
 

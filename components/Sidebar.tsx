@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import OrganizationSwitcher from "@/components/OrganizationSwitcher";
 
 // Modules from the implementation plan. `ready: false` ones are shown
 // greyed out until they are built, so the navigation already reflects the
@@ -10,8 +11,8 @@ const navItems = [
   { href: "/", label: "Dashboard", ready: true },
   { href: "/products", label: "Products", ready: true },
   { href: "/producers", label: "Producers", ready: true },
-  { href: "/warehouses", label: "Warehouses", ready: false },
-  { href: "/inventory", label: "Inventory", ready: false },
+  { href: "/warehouses", label: "Warehouses", ready: true },
+  { href: "/inventory", label: "Inventory", ready: true },
   { href: "/customers", label: "Customers", ready: false },
   { href: "/orders", label: "Orders", ready: false },
   { href: "/shipments", label: "Shipments", ready: false },
@@ -25,6 +26,9 @@ export default function Sidebar() {
       <div className="px-5 py-5 border-b border-slate-200">
         <p className="text-sm font-semibold text-slate-900">Supply Chain</p>
         <p className="text-xs text-slate-500">Enterprise Management System</p>
+      </div>
+      <div className="px-5 py-4 border-b border-slate-200">
+        <OrganizationSwitcher />
       </div>
       <nav className="p-3 space-y-1">
         {navItems.map((item) => {

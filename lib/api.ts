@@ -7,6 +7,20 @@ export function jsonError(status: number, error: string, details?: unknown) {
   });
 }
 
+/**
+ * Throw this from route code (including inside a transaction) to stop and
+ * answer with a specific status and message, e.g. a business rule such as
+ * "not enough stock". handleRouteError turns it into the response.
+ */
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Parses a route param like "101" into a positive integer, or null. */
 export function parseId(raw: string): number | null {
   if (!/^\d{1,15}$/.test(raw)) return null;
@@ -37,6 +51,16 @@ const constraintMessages: Record<string, string> = {
     "This product appears in customer orders and cannot be deleted.",
   uq_producer_org_name: "A producer with this name already exists.",
   producer_product_pkey: "This producer already supplies that product.",
+  uq_warehouse_org_name: "A warehouse with this name already exists.",
+  inventory_warehouse_id_fkey:
+    "This warehouse still has inventory records. Remove or transfer its stock first.",
+  shipment_warehouse_id_fkey:
+    "Shipments have gone through this warehouse, so it cannot be deleted.",
+  shipment_producer_id_fkey:
+    "This producer has shipment history, so it cannot be deleted. Set it to Inactive instead.",
+  ck_inventory_reserved_le_qty:
+    "Quantity cannot go below the amount already reserved for open orders.",
+  ck_inventory_quantity: "Quantity cannot be negative.",
 };
 
 interface PgError {
@@ -61,6 +85,10 @@ function isPgError(err: unknown): err is PgError {
  * server and never sent to the client.
  */
 export function handleRouteError(err: unknown): Response {
+  if (err instanceof HttpError) {
+    return jsonError(err.status, err.message);
+  }
+
   if (err instanceof ZodError) {
     return jsonError(
       400,

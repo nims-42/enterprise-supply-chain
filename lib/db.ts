@@ -1,4 +1,4 @@
-import { Pool, types } from "pg";
+import { Pool, types, type PoolClient } from "pg";
 
 // By default pg returns BIGINT and NUMERIC columns as strings, because they
 // can hold values larger than a JavaScript number can represent exactly.
@@ -25,3 +25,27 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export default pool;
+
+/**
+ * Runs `work` inside one database transaction:
+ *
+ *   BEGIN -> work(client) -> COMMIT
+ *                         -> ROLLBACK if anything throws
+ *
+ * Every query in `work` must use the `client` it is given (not `pool`), so
+ * they all run on the same connection and inside the same transaction.
+ */
+export async function withTransaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}

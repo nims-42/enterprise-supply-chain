@@ -29,9 +29,10 @@ DROP TABLE IF EXISTS warehouse        CASCADE;
 DROP TABLE IF EXISTS producer_product CASCADE;
 DROP TABLE IF EXISTS product          CASCADE;
 DROP TABLE IF EXISTS producer         CASCADE;
+DROP TABLE IF EXISTS organization     CASCADE;
+-- tables from an earlier version of this schema; dropped if still present
 DROP TABLE IF EXISTS app_user         CASCADE;
 DROP TABLE IF EXISTS role             CASCADE;
-DROP TABLE IF EXISTS organization     CASCADE;
 
 
 -- -----------------------------------------------------------------------------
@@ -50,42 +51,6 @@ CREATE TABLE organization (
     CONSTRAINT ck_organization_email
         CHECK (email IS NULL OR email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$')
 );
-
-
--- -----------------------------------------------------------------------------
--- ROLE: global list of roles (ADMIN, WAREHOUSE_MANAGER, ...)
--- -----------------------------------------------------------------------------
-CREATE TABLE role (
-    role_id   SMALLINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    role_name VARCHAR(50) NOT NULL,
-
-    CONSTRAINT uq_role_name UNIQUE (role_name),
-    CONSTRAINT ck_role_name_upper CHECK (role_name = upper(role_name))
-);
-
-
--- -----------------------------------------------------------------------------
--- APP_USER: people who log in. Named app_user because USER is reserved.
--- -----------------------------------------------------------------------------
-CREATE TABLE app_user (
-    user_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    organization_id BIGINT       NOT NULL REFERENCES organization (organization_id),
-    role_id         SMALLINT     NOT NULL REFERENCES role (role_id),
-    name            VARCHAR(150) NOT NULL,
-    email           VARCHAR(255) NOT NULL,
-    password_hash   VARCHAR(255) NOT NULL,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-
-    CONSTRAINT ck_app_user_email CHECK (email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
-    -- bcrypt hashes are 60 chars; this stops a plaintext password slipping in
-    CONSTRAINT ck_app_user_password_hash CHECK (length(password_hash) >= 60),
-    -- lets other tables point at (organization_id, user_id) together,
-    -- which is how we stop cross-organization references (see warehouse)
-    CONSTRAINT uq_app_user_org_user UNIQUE (organization_id, user_id)
-);
-
--- Emails must be unique regardless of case: Ela@x.com and ela@x.com are one login
-CREATE UNIQUE INDEX uq_app_user_email_lower ON app_user (lower(email));
 
 
 -- -----------------------------------------------------------------------------
@@ -155,19 +120,11 @@ CREATE TABLE warehouse (
     organization_id BIGINT       NOT NULL REFERENCES organization (organization_id),
     name            VARCHAR(150) NOT NULL,
     location        TEXT         NOT NULL,
-    capacity        INTEGER      NOT NULL,
-    manager_id      BIGINT,
+    capacity        INTEGER      NOT NULL,   -- stock units it can hold
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
     CONSTRAINT ck_warehouse_capacity CHECK (capacity > 0),
-    CONSTRAINT uq_warehouse_org_name UNIQUE (organization_id, name),
-    -- composite FK: the manager must belong to the SAME organization.
-    -- If that user is deleted, only manager_id is cleared (PG 15+ syntax),
-    -- organization_id is left alone.
-    CONSTRAINT fk_warehouse_manager
-        FOREIGN KEY (organization_id, manager_id)
-        REFERENCES app_user (organization_id, user_id)
-        ON DELETE SET NULL (manager_id)
+    CONSTRAINT uq_warehouse_org_name UNIQUE (organization_id, name)
 );
 
 
@@ -218,7 +175,6 @@ CREATE TABLE customer_order (
     order_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     organization_id BIGINT        NOT NULL REFERENCES organization (organization_id),
     customer_id     BIGINT        NOT NULL,
-    created_by      BIGINT        NOT NULL,
     order_date      TIMESTAMPTZ   NOT NULL DEFAULT now(),
     expected_date   DATE,
     status          VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
@@ -229,13 +185,10 @@ CREATE TABLE customer_order (
     CONSTRAINT ck_order_total CHECK (total_amount >= 0),
     CONSTRAINT ck_order_expected_date
         CHECK (expected_date IS NULL OR expected_date >= order_date::date),
-    -- customer and creating user must both belong to the order's organization
+    -- composite FK: the customer must belong to the order's organization
     CONSTRAINT fk_order_customer
         FOREIGN KEY (organization_id, customer_id)
-        REFERENCES customer (organization_id, customer_id),
-    CONSTRAINT fk_order_created_by
-        FOREIGN KEY (organization_id, created_by)
-        REFERENCES app_user (organization_id, user_id)
+        REFERENCES customer (organization_id, customer_id)
 );
 
 
@@ -278,22 +231,34 @@ CREATE TABLE transport (
 
 
 -- -----------------------------------------------------------------------------
--- SHIPMENT: an order can ship in several parts, from different warehouses.
--- transport_id and shipment_date stay NULL until a vehicle is assigned
--- and the shipment is dispatched.
+-- SHIPMENT: goods moving in either direction through a warehouse.
+--   INBOUND  producer  -> warehouse   (restocking; producer_id set, no order)
+--   OUTBOUND warehouse -> customer    (fulfilling an order; order_id set,
+--                                      no producer)
+-- An order can ship in several parts, from different warehouses.
+-- transport_id and shipment_date stay NULL until a vehicle is assigned and the
+-- shipment is dispatched.
 -- -----------------------------------------------------------------------------
 CREATE TABLE shipment (
     shipment_id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    order_id          BIGINT      NOT NULL REFERENCES customer_order (order_id),
+    shipment_type     VARCHAR(10) NOT NULL,
+    producer_id       BIGINT      REFERENCES producer (producer_id),
     warehouse_id      BIGINT      NOT NULL REFERENCES warehouse (warehouse_id),
+    order_id          BIGINT      REFERENCES customer_order (order_id),
     transport_id      BIGINT      REFERENCES transport (transport_id),
     shipment_date     TIMESTAMPTZ,
     expected_delivery DATE,
     actual_delivery   TIMESTAMPTZ,
-    status            VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    status            VARCHAR(20) NOT NULL DEFAULT 'CREATED',
 
+    CONSTRAINT ck_shipment_type CHECK (shipment_type IN ('INBOUND', 'OUTBOUND')),
+    -- the direction decides which side is filled in
+    CONSTRAINT ck_shipment_direction CHECK (
+        (shipment_type = 'INBOUND'  AND producer_id IS NOT NULL AND order_id IS NULL)
+     OR (shipment_type = 'OUTBOUND' AND order_id IS NOT NULL AND producer_id IS NULL)
+    ),
     CONSTRAINT ck_shipment_status CHECK (status IN
-        ('PENDING', 'PACKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CANCELLED')),
+        ('CREATED', 'PACKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CANCELLED')),
     CONSTRAINT ck_shipment_expected
         CHECK (expected_delivery IS NULL OR shipment_date IS NULL
                OR expected_delivery >= shipment_date::date),
@@ -303,9 +268,12 @@ CREATE TABLE shipment (
     -- a delivered shipment must say when it was delivered
     CONSTRAINT ck_shipment_delivered_has_date
         CHECK (status <> 'DELIVERED' OR actual_delivery IS NOT NULL),
-    -- once it has left the warehouse it must have a vehicle and a dispatch time
+    -- once an OUTBOUND shipment leaves our warehouse it must have one of our
+    -- vehicles and a dispatch time. (INBOUND goods usually come on the
+    -- producer's own transport, so transport_id may stay NULL for them.)
     CONSTRAINT ck_shipment_dispatched_has_transport
-        CHECK (status NOT IN ('DISPATCHED', 'IN_TRANSIT', 'DELIVERED')
+        CHECK (shipment_type = 'INBOUND'
+               OR status NOT IN ('DISPATCHED', 'IN_TRANSIT', 'DELIVERED')
                OR (transport_id IS NOT NULL AND shipment_date IS NOT NULL))
 );
 
@@ -315,12 +283,10 @@ CREATE TABLE shipment (
 -- PostgreSQL indexes primary keys and UNIQUE constraints automatically,
 -- but NOT foreign key columns. These cover the joins and filters we use.
 -- -----------------------------------------------------------------------------
-CREATE INDEX idx_app_user_role          ON app_user (role_id);
 CREATE INDEX idx_producer_org           ON producer (organization_id);
 CREATE INDEX idx_product_name           ON product (name);
 CREATE INDEX idx_product_category       ON product (category);
 CREATE INDEX idx_producer_product_prod  ON producer_product (product_id);
-CREATE INDEX idx_warehouse_manager      ON warehouse (manager_id);
 CREATE INDEX idx_inventory_product      ON inventory (product_id);
 CREATE INDEX idx_customer_org           ON customer (organization_id);
 CREATE INDEX idx_order_customer         ON customer_order (customer_id);
@@ -329,8 +295,9 @@ CREATE INDEX idx_order_date             ON customer_order (order_date DESC);
 CREATE INDEX idx_order_item_product     ON order_item (product_id);
 CREATE INDEX idx_transport_org_status   ON transport (organization_id, status);
 CREATE INDEX idx_shipment_order         ON shipment (order_id);
+CREATE INDEX idx_shipment_producer      ON shipment (producer_id);
 CREATE INDEX idx_shipment_warehouse     ON shipment (warehouse_id);
 CREATE INDEX idx_shipment_transport     ON shipment (transport_id);
-CREATE INDEX idx_shipment_status        ON shipment (status);
+CREATE INDEX idx_shipment_type_status   ON shipment (shipment_type, status);
 
 COMMIT;

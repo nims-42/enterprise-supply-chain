@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { escapeLike, handleRouteError, jsonError, readJson } from "@/lib/api";
 import { productInputSchema, productListQuerySchema } from "@/lib/validation/product";
 
@@ -9,7 +9,7 @@ import { productInputSchema, productListQuerySchema } from "@/lib/validation/pro
 // across all warehouses.
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const organizationId = await getCurrentOrganizationId();
     const query = productListQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams),
     );
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
          AND ($3::text IS NULL OR p.category = $3)
        ORDER BY p.name
        LIMIT $4 OFFSET $5`,
-      [user.organizationId, search, query.category ?? null, query.limit, query.offset],
+      [organizationId, search, query.category ?? null, query.limit, query.offset],
     );
 
     // COUNT(*) OVER () repeats the full match count on every row; lift it out
@@ -49,13 +49,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/products   (ADMIN only)
+// POST /api/products
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can create products.");
-    }
+    const organizationId = await getCurrentOrganizationId();
 
     const body = await readJson(request);
     if (body === undefined) return jsonError(400, "Request body must be valid JSON.");
@@ -68,7 +65,7 @@ export async function POST(request: Request) {
        RETURNING product_id, name, sku, description, category,
                  unit_price, reorder_level, created_at`,
       [
-        user.organizationId,
+        organizationId,
         input.name,
         input.sku,
         input.description,

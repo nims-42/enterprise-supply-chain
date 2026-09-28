@@ -33,16 +33,19 @@ ORDER BY line_total DESC;
 
 
 -- -----------------------------------------------------------------------------
--- Q2. LEFT JOIN: every warehouse with its manager.
--- An INNER JOIN would silently drop Pune West Hub, which has no manager.
+-- Q2. LEFT JOIN: every product with how many units have been ordered.
+-- An INNER JOIN would silently drop products nobody has ordered yet;
+-- the LEFT JOIN keeps them with 0.
 -- -----------------------------------------------------------------------------
-SELECT w.name                              AS warehouse,
-       w.location,
-       COALESCE(u.name, '(no manager)')    AS manager
-FROM warehouse w
-LEFT JOIN app_user u ON u.user_id = w.manager_id
-WHERE w.organization_id = 1
-ORDER BY w.name;
+SELECT p.name,
+       p.category,
+       COALESCE(SUM(oi.quantity), 0)  AS units_ordered,
+       COUNT(oi.order_item_id)        AS order_lines
+FROM product p
+LEFT JOIN order_item oi ON oi.product_id = p.product_id
+WHERE p.organization_id = 1
+GROUP BY p.product_id, p.name, p.category
+ORDER BY units_ordered, p.name;
 
 
 -- -----------------------------------------------------------------------------
@@ -220,7 +223,7 @@ ORDER BY suppliers DESC, p.name;
 
 
 -- -----------------------------------------------------------------------------
--- Q14. CASE: on-time vs late delivery for delivered shipments
+-- Q14. CASE: on-time vs late delivery for delivered customer shipments
 -- -----------------------------------------------------------------------------
 SELECT s.shipment_id,
        s.order_id,
@@ -235,12 +238,13 @@ FROM shipment s
 JOIN customer_order o ON o.order_id     = s.order_id
 JOIN warehouse      w ON w.warehouse_id = s.warehouse_id
 WHERE o.organization_id = 1
+  AND s.shipment_type = 'OUTBOUND'
   AND s.status = 'DELIVERED'
 ORDER BY s.shipment_id;
 
 
 -- -----------------------------------------------------------------------------
--- Q15. Aggregate with FILTER: on-time delivery rate per warehouse
+-- Q15. Aggregate with FILTER: on-time delivery rate to customers, per warehouse
 -- -----------------------------------------------------------------------------
 SELECT w.name AS warehouse,
        COUNT(*) AS delivered,
@@ -250,6 +254,7 @@ SELECT w.name AS warehouse,
 FROM shipment s
 JOIN warehouse w ON w.warehouse_id = s.warehouse_id
 WHERE w.organization_id = 1
+  AND s.shipment_type = 'OUTBOUND'
   AND s.status = 'DELIVERED'
 GROUP BY w.warehouse_id, w.name
 ORDER BY on_time_pct DESC;
@@ -304,7 +309,7 @@ ORDER BY utilisation_pct DESC;
 
 
 -- -----------------------------------------------------------------------------
--- Q19. Scalar subqueries: the four dashboard counters in one row
+-- Q19. Scalar subqueries: the dashboard counters in one row
 -- -----------------------------------------------------------------------------
 SELECT
     (SELECT COUNT(*) FROM product   WHERE organization_id = 1)                AS products,
@@ -314,7 +319,11 @@ SELECT
     (SELECT COUNT(*) FROM shipment s
        JOIN customer_order o ON o.order_id = s.order_id
       WHERE o.organization_id = 1
-        AND s.status IN ('DISPATCHED', 'IN_TRANSIT', 'DELAYED'))              AS active_shipments;
+        AND s.status IN ('DISPATCHED', 'IN_TRANSIT', 'DELAYED'))              AS active_deliveries,
+    (SELECT COUNT(*) FROM shipment s
+       JOIN producer pr ON pr.producer_id = s.producer_id
+      WHERE pr.organization_id = 1
+        AND s.status NOT IN ('DELIVERED', 'CANCELLED'))                       AS incoming_restocks;
 
 
 -- -----------------------------------------------------------------------------
@@ -329,3 +338,26 @@ FROM customer_order
 WHERE organization_id = 1
 GROUP BY status
 ORDER BY value DESC;
+
+
+-- -----------------------------------------------------------------------------
+-- Q21. Supplier delivery performance from INBOUND shipments.
+-- LEFT JOIN keeps producers that have never delivered (0 deliveries);
+-- the late count explains why Metro Electronics is SUSPENDED.
+-- -----------------------------------------------------------------------------
+SELECT pr.name                                        AS producer,
+       pr.status,
+       COUNT(s.shipment_id) FILTER (WHERE s.status = 'DELIVERED') AS deliveries,
+       COUNT(s.shipment_id) FILTER (
+           WHERE s.status = 'DELIVERED'
+             AND s.actual_delivery::date > s.expected_delivery)   AS late,
+       ROUND(AVG(s.actual_delivery::date - s.expected_delivery)
+             FILTER (WHERE s.status = 'DELIVERED'), 1)            AS avg_days_late,
+       COUNT(s.shipment_id) FILTER (
+           WHERE s.status NOT IN ('DELIVERED', 'CANCELLED'))      AS on_the_way
+FROM producer pr
+LEFT JOIN shipment s ON s.producer_id = pr.producer_id
+                    AND s.shipment_type = 'INBOUND'
+WHERE pr.organization_id = 1
+GROUP BY pr.producer_id, pr.name, pr.status
+ORDER BY late DESC, pr.name;

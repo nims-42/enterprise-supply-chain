@@ -1,5 +1,5 @@
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { handleRouteError, jsonError, parseId, readJson } from "@/lib/api";
 import { supplyTermsSchema } from "@/lib/validation/producer";
 
@@ -8,14 +8,11 @@ type Context = { params: Promise<{ id: string; productId: string }> };
 // Both handlers join to producer so the organization check happens in the
 // same statement as the change.
 
-// PUT /api/producers/1/products/101   (ADMIN only)
+// PUT /api/producers/1/products/101
 // Body: { supply_price, lead_time_days, minimum_order_quantity }
 export async function PUT(request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can change supply terms.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const { id, productId } = await params;
     const producerId = parseId(id);
     const prodId = parseId(productId);
@@ -41,7 +38,7 @@ export async function PUT(request: Request, { params }: Context) {
         input.supply_price,
         input.lead_time_days,
         input.minimum_order_quantity,
-        user.organizationId,
+        organizationId,
       ],
     );
     if (rowCount === 0) return jsonError(404, "This producer does not supply that product.");
@@ -52,14 +49,11 @@ export async function PUT(request: Request, { params }: Context) {
   }
 }
 
-// DELETE /api/producers/1/products/101   (ADMIN only)
+// DELETE /api/producers/1/products/101
 // Removes the link only; the producer and the product both stay.
 export async function DELETE(_request: Request, { params }: Context) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can change supply terms.");
-    }
+    const organizationId = await getCurrentOrganizationId();
     const { id, productId } = await params;
     const producerId = parseId(id);
     const prodId = parseId(productId);
@@ -72,7 +66,7 @@ export async function DELETE(_request: Request, { params }: Context) {
          AND pr.organization_id = $3
          AND pp.producer_id = $1
          AND pp.product_id = $2`,
-      [producerId, prodId, user.organizationId],
+      [producerId, prodId, organizationId],
     );
     if (rowCount === 0) return jsonError(404, "This producer does not supply that product.");
 

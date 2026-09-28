@@ -91,3 +91,46 @@ export interface SuppliedProduct {
 export interface ProducerDetail extends Producer {
   products: SuppliedProduct[];
 }
+
+export interface Warehouse {
+  warehouse_id: number;
+  name: string;
+  location: string;
+  capacity: number;
+  created_at: string;
+}
+
+/** A row from GET /api/warehouses */
+export interface WarehouseSummary extends Warehouse {
+  product_count: number;
+  units_held: number;
+  units_reserved: number;
+  low_stock_count: number;
+}
+
+/** One stock row: a product in a warehouse. */
+export interface InventoryRow {
+  inventory_id: number;
+  warehouse_id: number;
+  warehouse: string;
+  product_id: number;
+  product: string;
+  sku: string;
+  reorder_level: number;
+  quantity: number;
+  reserved_quantity: number;
+  available: number;
+  last_updated: string;
+}
+
+export interface InventoryListResponse {
+  data: InventoryRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** GET /api/warehouses/[id] */
+export interface WarehouseDetail extends Warehouse {
+  inventory: InventoryRow[];
+}

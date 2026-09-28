@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import pool from "@/lib/db";
-import { getCurrentUser, hasRole } from "@/lib/auth";
+import { getCurrentOrganizationId } from "@/lib/organization";
 import { escapeLike, handleRouteError, jsonError, readJson } from "@/lib/api";
 import { producerInputSchema, producerListQuerySchema } from "@/lib/validation/producer";
 
@@ -8,7 +8,7 @@ import { producerInputSchema, producerListQuerySchema } from "@/lib/validation/p
 // Producers of this organization with how many products each supplies.
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const organizationId = await getCurrentOrganizationId();
     const query = producerListQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams),
     );
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
        GROUP BY pr.producer_id
        ORDER BY pr.name
        LIMIT $4 OFFSET $5`,
-      [user.organizationId, search, query.status ?? null, query.limit, query.offset],
+      [organizationId, search, query.status ?? null, query.limit, query.offset],
     );
 
     const total = rows.length > 0 ? rows[0].total_count : 0;
@@ -39,13 +39,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/producers   (ADMIN only)
+// POST /api/producers
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUser();
-    if (!hasRole(user, "ADMIN")) {
-      return jsonError(403, "Only administrators can add producers.");
-    }
+    const organizationId = await getCurrentOrganizationId();
 
     const body = await readJson(request);
     if (body === undefined) return jsonError(400, "Request body must be valid JSON.");
@@ -55,7 +52,7 @@ export async function POST(request: Request) {
       `INSERT INTO producer (organization_id, name, email, phone, address, status)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING producer_id, name, email, phone, address, status, created_at`,
-      [user.organizationId, input.name, input.email, input.phone, input.address, input.status],
+      [organizationId, input.name, input.email, input.phone, input.address, input.status],
     );
 
     const producer = rows[0];
