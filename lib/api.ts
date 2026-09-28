@@ -61,6 +61,12 @@ const constraintMessages: Record<string, string> = {
   ck_inventory_reserved_le_qty:
     "Quantity cannot go below the amount already reserved for open orders.",
   ck_inventory_quantity: "Quantity cannot be negative.",
+  fk_order_customer: "This customer has orders, so it cannot be deleted.",
+  uq_order_item_order_product: "Each product can appear only once in an order.",
+  ck_order_expected_date: "The expected date cannot be before the order date.",
+  uq_transport_org_vehicle: "A vehicle with this number already exists.",
+  shipment_transport_id_fkey:
+    "This vehicle has carried shipments, so it cannot be deleted. Set it to Inactive instead.",
 };
 
 interface PgError {
@@ -107,6 +113,13 @@ export function handleRouteError(err: unknown): Response {
         return jsonError(409, friendly ?? "This record already exists.");
       case "23503": // foreign_key_violation
         return jsonError(409, friendly ?? "This record is linked to other records.");
+      case "42P01": // undefined_table (e.g. a view)
+      case "42883": // undefined_function
+        console.error(err);
+        return jsonError(
+          500,
+          "The database is missing views or functions from database/advanced.sql. Load it with psql, then try again.",
+        );
       case "23514": // check_violation
       case "23502": // not_null_violation
       case "22003": // numeric_value_out_of_range

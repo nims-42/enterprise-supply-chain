@@ -1,0 +1,192 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { apiFetch, ApiError } from "@/lib/client-api";
+import { formatDate, formatINR } from "@/lib/format";
+import { ORDER_STATUSES } from "@/lib/validation/order";
+import type { OrderListResponse } from "@/lib/types";
+import OrderStatusBadge from "@/components/OrderStatusBadge";
+
+const PAGE_SIZE = 25;
+
+interface LoadResult {
+  key: string;
+  data?: OrderListResponse;
+  error?: string;
+}
+
+export default function OrdersPage() {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(0);
+  const [result, setResult] = useState<LoadResult | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const requestKey = `${debouncedSearch}|${status}|${page}`;
+  const loading = result?.key !== requestKey;
+
+  useEffect(() => {
+    const key = `${debouncedSearch}|${status}|${page}`;
+    const params = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+    });
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    if (status) params.set("status", status);
+
+    const controller = new AbortController();
+    apiFetch<OrderListResponse>(`/api/orders?${params}`, { signal: controller.signal })
+      .then((data) => setResult({ key, data }))
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setResult({
+          key,
+          error: err instanceof ApiError ? err.message : "Could not load orders.",
+        });
+      });
+    return () => controller.abort();
+  }, [debouncedSearch, status, page]);
+
+  const data = result?.data;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+
+  return (
+    <div className="max-w-6xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Orders</h1>
+          <p className="text-sm text-slate-500">
+            {data ? `${data.total} order${data.total === 1 ? "" : "s"}` : " "}
+          </p>
+        </div>
+        <Link
+          href="/orders/new"
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          New order
+        </Link>
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Order number or customer"
+          className="w-72 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-400"
+        />
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(0);
+          }}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="">All statuses</option>
+          {ORDER_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s.charAt(0) + s.slice(1).toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {result?.error && !loading && (
+        <div className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {result.error}
+        </div>
+      )}
+
+      <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Placed</th>
+              <th className="px-4 py-3">Expected</th>
+              <th className="px-4 py-3 text-right">Items</th>
+              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody className={`divide-y divide-slate-100 ${loading ? "opacity-50" : ""}`}>
+            {data?.data.map((o) => (
+              <tr key={o.order_id} className="hover:bg-slate-50">
+                <td className="px-4 py-3">
+                  <Link href={`/orders/${o.order_id}`} className="font-medium hover:underline">
+                    #{o.order_id}
+                  </Link>
+                </td>
+                <td className="px-4 py-3">
+                  <Link href={`/customers/${o.customer_id}`} className="hover:underline">
+                    {o.customer_name}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                  {formatDate(o.order_date)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                  {o.expected_date ? formatDate(o.expected_date) : "-"}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{o.item_count}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{formatINR(o.total_amount)}</td>
+                <td className="px-4 py-3">
+                  <OrderStatusBadge status={o.status} />
+                </td>
+              </tr>
+            ))}
+            {data && data.data.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                  No orders match.
+                </td>
+              </tr>
+            )}
+            {!data && loading && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                  Loading...
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {data && data.total > PAGE_SIZE && (
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-slate-500">
+            Page {page + 1} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 0 || loading}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page + 1 >= totalPages || loading}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

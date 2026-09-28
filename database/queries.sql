@@ -11,6 +11,8 @@
 --
 -- Queries that compare against CURRENT_DATE (overdue shipments) depend on
 -- when you run them; the seed data is set around late September 2026.
+--
+-- Q22 onwards use the views, functions and triggers from advanced.sql.
 -- =============================================================================
 
 
@@ -361,3 +363,84 @@ LEFT JOIN shipment s ON s.producer_id = pr.producer_id
 WHERE pr.organization_id = 1
 GROUP BY pr.producer_id, pr.name, pr.status
 ORDER BY late DESC, pr.name;
+
+
+-- =============================================================================
+-- VIEWS, STORED FUNCTIONS AND TRIGGERS (need advanced.sql)
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- Q22. VIEW inventory_status: everything that needs restocking, by warehouse.
+-- The view hides the 3-table join and the CASE that works out stock_status.
+-- -----------------------------------------------------------------------------
+SELECT warehouse, product, quantity, reserved_quantity,
+       available_quantity, reorder_level, stock_status
+FROM inventory_status
+WHERE organization_id = 1
+  AND stock_status <> 'IN_STOCK'
+ORDER BY warehouse, available_quantity;
+
+
+-- -----------------------------------------------------------------------------
+-- Q23. VIEW shipment_overview: everything overdue or delivered late, in
+-- both directions, with the customer or producer on the other end.
+-- -----------------------------------------------------------------------------
+SELECT shipment_id, shipment_type, status, warehouse, counterparty,
+       expected_delivery, days_late, is_overdue
+FROM shipment_overview
+WHERE organization_id = 1
+  AND days_late > 0
+ORDER BY days_late DESC;
+
+
+-- -----------------------------------------------------------------------------
+-- Q24. STORED FUNCTION calculate_order_total: check every stored total
+-- against a fresh calculation. Should return no rows: the trigger keeps
+-- them in step.
+-- -----------------------------------------------------------------------------
+SELECT order_id, total_amount, calculate_order_total(order_id) AS recalculated
+FROM customer_order
+WHERE organization_id = 1
+  AND total_amount <> calculate_order_total(order_id);
+
+
+-- -----------------------------------------------------------------------------
+-- Q25. STORED FUNCTION get_available_inventory: unreserved units per product,
+-- in total and in the Bengaluru warehouse (id 1).
+-- -----------------------------------------------------------------------------
+SELECT p.name,
+       get_available_inventory(p.product_id)    AS available_everywhere,
+       get_available_inventory(p.product_id, 1) AS available_in_bengaluru
+FROM product p
+WHERE p.organization_id = 1
+  AND p.category = 'Laptops'
+ORDER BY p.name;
+
+
+-- -----------------------------------------------------------------------------
+-- Q26. TRIGGERS in action, inside a transaction that is rolled back at the
+-- end, so the demo leaves no trace.
+--   1. adding an order line updates the order total by itself
+--   2. changing a quantity stamps inventory.last_updated by itself
+-- -----------------------------------------------------------------------------
+BEGIN;
+
+SELECT order_id, total_amount AS total_before
+FROM customer_order WHERE order_id = 1013;
+
+INSERT INTO order_item (order_id, product_id, quantity, unit_price)
+VALUES (1013, 111, 10, 399.00);                -- 10 mice at 399
+
+SELECT order_id, total_amount AS total_after_trigger   -- 3,990 more
+FROM customer_order WHERE order_id = 1013;
+
+SELECT product_id, quantity, last_updated AS stamped_before
+FROM inventory WHERE warehouse_id = 1 AND product_id = 110;
+
+UPDATE inventory SET quantity = quantity + 5
+WHERE warehouse_id = 1 AND product_id = 110;   -- no last_updated here...
+
+SELECT product_id, quantity, last_updated AS stamped_by_trigger   -- ...yet it's now
+FROM inventory WHERE warehouse_id = 1 AND product_id = 110;
+
+ROLLBACK;

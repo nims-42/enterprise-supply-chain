@@ -13,9 +13,10 @@ const navItems = [
   { href: "/producers", label: "Producers", ready: true },
   { href: "/warehouses", label: "Warehouses", ready: true },
   { href: "/inventory", label: "Inventory", ready: true },
-  { href: "/customers", label: "Customers", ready: false },
-  { href: "/orders", label: "Orders", ready: false },
-  { href: "/shipments", label: "Shipments", ready: false },
+  { href: "/customers", label: "Customers", ready: true },
+  { href: "/orders", label: "Orders", ready: true },
+  { href: "/shipments", label: "Shipments", ready: true },
+  { href: "/transport", label: "Transport", ready: true },
 ];
 
 export default function Sidebar() {

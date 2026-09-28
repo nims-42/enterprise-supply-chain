@@ -2,7 +2,8 @@
 -- Enterprise Supply Chain Management System
 -- database/seed.sql
 --
--- Sample data for development and demos. Load AFTER schema.sql:
+-- Sample data for development and demos. Load AFTER schema.sql and
+-- advanced.sql:
 --     psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/seed.sql
 --
 -- Re-runnable: it empties every table first.
@@ -420,7 +421,9 @@ OVERRIDING SYSTEM VALUE VALUES
 -- =============================================================================
 
 -- UPDATE with a correlated subquery: order totals from their items.
--- (Later a trigger on order_item keeps this current automatically.)
+-- With advanced.sql installed, the trigger on order_item has already set
+-- these while the items were inserted; this statement computes the same
+-- numbers by hand, and keeps the seed correct without advanced.sql too.
 UPDATE customer_order o
 SET total_amount = COALESCE((
     SELECT SUM(oi.quantity * oi.unit_price)
@@ -431,6 +434,12 @@ SET total_amount = COALESCE((
 -- UPDATE ... FROM: reserve stock for OUTBOUND shipments that are still in
 -- the warehouse (CREATED or PACKED). Stock for shipments that already left
 -- has been deducted from quantity, so it is not reserved any more.
+--
+-- The last_updated trigger (advanced.sql) is switched off for this one
+-- statement, so the sample rows keep the dates written above instead of
+-- "now". DISABLE TRIGGER USER is harmless if no trigger exists yet.
+ALTER TABLE inventory DISABLE TRIGGER USER;
+
 UPDATE inventory i
 SET reserved_quantity = r.reserved
 FROM (
@@ -443,6 +452,8 @@ FROM (
 ) r
 WHERE i.warehouse_id = r.warehouse_id
   AND i.product_id   = r.product_id;
+
+ALTER TABLE inventory ENABLE TRIGGER USER;
 
 -- UPDATE: a supplier gets suspended after repeated late deliveries
 UPDATE producer

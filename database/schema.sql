@@ -7,8 +7,14 @@
 -- Run once to create the database (from cmd, not inside this script):
 --     psql -U postgres -c "CREATE DATABASE enterprise_supply_chain;"
 --
--- Then load this file:
+-- Then load, in this order:
 --     psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/schema.sql
+--     psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/advanced.sql
+--     psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/seed.sql
+--
+-- advanced.sql adds the views, stored functions and triggers. Dropping the
+-- tables below also drops those views and triggers, so load advanced.sql
+-- again whenever you re-run this file.
 --
 -- The script is re-runnable: it drops everything first. It runs inside one
 -- transaction, so if any statement fails nothing is left half-created.
@@ -169,7 +175,7 @@ CREATE TABLE customer (
 
 -- -----------------------------------------------------------------------------
 -- CUSTOMER_ORDER: named customer_order because ORDER is reserved
--- total_amount is maintained by a trigger on order_item (added later).
+-- total_amount is maintained by a trigger on order_item (advanced.sql).
 -- -----------------------------------------------------------------------------
 CREATE TABLE customer_order (
     order_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -259,9 +265,8 @@ CREATE TABLE shipment (
     ),
     CONSTRAINT ck_shipment_status CHECK (status IN
         ('CREATED', 'PACKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CANCELLED')),
-    CONSTRAINT ck_shipment_expected
-        CHECK (expected_delivery IS NULL OR shipment_date IS NULL
-               OR expected_delivery >= shipment_date::date),
+    -- (no rule tying expected_delivery to shipment_date: a shipment that is
+    --  already running late must still be dispatchable)
     CONSTRAINT ck_shipment_actual
         CHECK (actual_delivery IS NULL OR shipment_date IS NULL
                OR actual_delivery >= shipment_date),

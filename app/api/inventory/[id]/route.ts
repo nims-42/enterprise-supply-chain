@@ -43,7 +43,7 @@ export async function PATCH(request: Request, { params }: Context) {
 
       const { rows } = await client.query(
         `UPDATE inventory
-         SET quantity = $2, last_updated = now()
+         SET quantity = $2      -- last_updated is stamped by trg_inventory_last_updated
          WHERE inventory_id = $1
          RETURNING inventory_id, warehouse_id, product_id, quantity, reserved_quantity,
                    quantity - reserved_quantity AS available, last_updated`,

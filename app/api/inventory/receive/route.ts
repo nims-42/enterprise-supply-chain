@@ -29,12 +29,14 @@ export async function POST(request: Request) {
       // INSERT ... ON CONFLICT DO UPDATE is PostgreSQL's "upsert". The
       // UNIQUE (warehouse_id, product_id) constraint is what defines the
       // conflict. EXCLUDED is the row we tried to insert.
+      // last_updated: the column default fills it for a new row, and the
+      // trg_inventory_last_updated trigger (advanced.sql) stamps it when an
+      // existing row's quantity changes.
       const { rows } = await client.query(
-        `INSERT INTO inventory (warehouse_id, product_id, quantity, last_updated)
-         VALUES ($1, $2, $3, now())
+        `INSERT INTO inventory (warehouse_id, product_id, quantity)
+         VALUES ($1, $2, $3)
          ON CONFLICT (warehouse_id, product_id)
-         DO UPDATE SET quantity     = inventory.quantity + EXCLUDED.quantity,
-                       last_updated = now()
+         DO UPDATE SET quantity = inventory.quantity + EXCLUDED.quantity
          RETURNING inventory_id, warehouse_id, product_id,
                    quantity, reserved_quantity,
                    quantity - reserved_quantity AS available, last_updated`,

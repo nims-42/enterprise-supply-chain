@@ -22,17 +22,16 @@ export async function GET(_request: Request, { params }: Context) {
     );
     if (warehouseResult.rowCount === 0) return jsonError(404, "Warehouse not found.");
 
+    // From the inventory_status view (advanced.sql).
     const inventoryResult = await pool.query(
-      `SELECT i.inventory_id, i.warehouse_id, w.name AS warehouse,
-              i.product_id, p.name AS product, p.sku, p.reorder_level,
-              i.quantity, i.reserved_quantity,
-              i.quantity - i.reserved_quantity AS available,
-              i.last_updated
-       FROM inventory i
-       JOIN warehouse w ON w.warehouse_id = i.warehouse_id
-       JOIN product   p ON p.product_id   = i.product_id
-       WHERE i.warehouse_id = $1
-       ORDER BY p.name`,
+      `SELECT inventory_id, warehouse_id, warehouse,
+              product_id, product, sku, reorder_level,
+              quantity, reserved_quantity,
+              available_quantity AS available,
+              stock_status, last_updated
+       FROM inventory_status
+       WHERE warehouse_id = $1
+       ORDER BY product`,
       [id],
     );
 

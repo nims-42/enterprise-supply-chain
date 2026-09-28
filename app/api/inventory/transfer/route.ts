@@ -53,9 +53,10 @@ export async function POST(request: Request) {
 
       await assertCapacity(client, destination, input.quantity);
 
+      // Both rows' last_updated is stamped by the trigger in advanced.sql.
       const from = await client.query(
         `UPDATE inventory
-         SET quantity = quantity - $3, last_updated = now()
+         SET quantity = quantity - $3
          WHERE warehouse_id = $1 AND product_id = $2
          RETURNING inventory_id, warehouse_id, product_id, quantity, reserved_quantity,
                    quantity - reserved_quantity AS available, last_updated`,
@@ -63,11 +64,10 @@ export async function POST(request: Request) {
       );
 
       const to = await client.query(
-        `INSERT INTO inventory (warehouse_id, product_id, quantity, last_updated)
-         VALUES ($1, $2, $3, now())
+        `INSERT INTO inventory (warehouse_id, product_id, quantity)
+         VALUES ($1, $2, $3)
          ON CONFLICT (warehouse_id, product_id)
-         DO UPDATE SET quantity     = inventory.quantity + EXCLUDED.quantity,
-                       last_updated = now()
+         DO UPDATE SET quantity = inventory.quantity + EXCLUDED.quantity
          RETURNING inventory_id, warehouse_id, product_id, quantity, reserved_quantity,
                    quantity - reserved_quantity AS available, last_updated`,
         [input.to_warehouse_id, input.product_id, input.quantity],

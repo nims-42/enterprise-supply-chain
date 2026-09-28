@@ -5,8 +5,10 @@ import { escapeLike, handleRouteError } from "@/lib/api";
 import { inventoryListQuerySchema } from "@/lib/validation/inventory";
 
 // GET /api/inventory?warehouse_id=1&q=dell&low_stock=true&limit=50&offset=0
-// Stock rows across this organization's warehouses.
-// low_stock=true keeps rows where available <= the product's reorder level.
+// Stock rows across this organization's warehouses, read from the
+// inventory_status view (advanced.sql), which already joins warehouse and
+// product and works out available_quantity and stock_status.
+// low_stock=true keeps every row that is not IN_STOCK.
 export async function GET(request: NextRequest) {
   try {
     const organizationId = await getCurrentOrganizationId();
@@ -16,20 +18,18 @@ export async function GET(request: NextRequest) {
     const search = query.q ? `%${escapeLike(query.q)}%` : null;
 
     const { rows } = await pool.query(
-      `SELECT i.inventory_id, i.warehouse_id, w.name AS warehouse,
-              i.product_id, p.name AS product, p.sku, p.reorder_level,
-              i.quantity, i.reserved_quantity,
-              i.quantity - i.reserved_quantity AS available,
-              i.last_updated,
+      `SELECT inventory_id, warehouse_id, warehouse,
+              product_id, product, sku, reorder_level,
+              quantity, reserved_quantity,
+              available_quantity AS available,
+              stock_status, last_updated,
               COUNT(*) OVER () AS total_count
-       FROM inventory i
-       JOIN warehouse w ON w.warehouse_id = i.warehouse_id
-       JOIN product   p ON p.product_id   = i.product_id
-       WHERE w.organization_id = $1
-         AND ($2::bigint IS NULL OR i.warehouse_id = $2)
-         AND ($3::text   IS NULL OR p.name ILIKE $3 OR p.sku ILIKE $3)
-         AND (NOT $4::boolean OR i.quantity - i.reserved_quantity <= p.reorder_level)
-       ORDER BY w.name, p.name
+       FROM inventory_status
+       WHERE organization_id = $1
+         AND ($2::bigint IS NULL OR warehouse_id = $2)
+         AND ($3::text   IS NULL OR product ILIKE $3 OR sku ILIKE $3)
+         AND (NOT $4::boolean OR stock_status <> 'IN_STOCK')
+       ORDER BY warehouse, product
        LIMIT $5 OFFSET $6`,
       [
         organizationId,

@@ -8,6 +8,12 @@ import { Pool, types, type PoolClient } from "pg";
 types.setTypeParser(20, (value) => Number(value)); // BIGINT (int8)
 types.setTypeParser(1700, (value) => Number(value)); // NUMERIC
 
+// DATE columns (e.g. customer_order.expected_date) have no time or timezone.
+// pg would turn them into a JS Date at local midnight, which in IST is the
+// previous day 18:30 UTC and can display as the wrong date. Keep them as the
+// plain "YYYY-MM-DD" text PostgreSQL sends.
+types.setTypeParser(1082, (value) => value); // DATE
+
 // Reuse one pool across hot reloads in dev. Without this, every file save
 // in `next dev` creates a new Pool and you eventually hit
 // "too many clients already" on Postgres.
