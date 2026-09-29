@@ -25,8 +25,7 @@ export default function Sidebar() {
   return (
     <aside className="w-56 shrink-0 border-r border-slate-200 bg-white">
       <div className="px-5 py-5 border-b border-slate-200">
-        <p className="text-sm font-semibold text-slate-900">Supply Chain</p>
-        <p className="text-xs text-slate-500">Enterprise Management System</p>
+        <p className="text-sm font-semibold text-slate-900">Supply chain management system</p>
       </div>
       <div className="px-5 py-4 border-b border-slate-200">
         <OrganizationSwitcher />

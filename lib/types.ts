@@ -351,3 +351,80 @@ export interface ShipmentDetail extends ShipmentListItem {
   /** Statuses this shipment may move to next. */
   next_statuses: ShipmentStatus[];
 }
+
+/** GET /api/dashboard */
+export interface DashboardData {
+  counts: {
+    products: number;
+    warehouses: number;
+    customers: number;
+    active_producers: number;
+    vehicles_available: number;
+    vehicles_total: number;
+  };
+  stock: {
+    units_on_hand: number;
+    units_reserved: number;
+    stock_value: number;
+  };
+  orders: {
+    by_status: Record<OrderStatus, number>;
+    open: number;
+    revenue_30d: number;
+    orders_30d: number;
+  };
+  /** Last six months, oldest first; month is "YYYY-MM". */
+  monthly_revenue: { month: string; revenue: number; orders: number }[];
+  shipments: {
+    on_the_road: number;
+    awaiting_dispatch: number;
+    inbound_expected: number;
+    overdue: number;
+  };
+  low_stock: {
+    total: number;
+    items: {
+      inventory_id: number;
+      warehouse_id: number;
+      warehouse: string;
+      product_id: number;
+      product: string;
+      sku: string;
+      quantity: number;
+      reserved_quantity: number;
+      available: number;
+      reorder_level: number;
+      stock_status: StockStatus;
+    }[];
+  };
+  warehouses: {
+    warehouse_id: number;
+    name: string;
+    location: string;
+    capacity: number;
+    held: number;
+  }[];
+  recent_orders: {
+    order_id: number;
+    customer_name: string;
+    order_date: string;
+    status: OrderStatus;
+    total_amount: number;
+  }[];
+  overdue_shipments: {
+    shipment_id: number;
+    shipment_type: ShipmentType;
+    status: ShipmentStatus;
+    counterparty: string;
+    warehouse: string;
+    expected_delivery: string;
+    days_late: number;
+  }[];
+  best_sellers: {
+    product_id: number;
+    name: string;
+    sku: string;
+    units: number;
+    revenue: number;
+  }[];
+}
