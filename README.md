@@ -14,7 +14,7 @@
    psql -U postgres -c "CREATE DATABASE enterprise_supply_chain;"
    psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/schema.sql
    psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/advanced.sql
-   psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/seed.sql
+   psql -U postgres -d enterprise_supply_chain -v ON_ERROR_STOP=1 -f database/seed.sql (if fake data is needed to be generated for testing purposes)
    ```
 
 2. Copy `.env.example` to `.env.local` and set your Postgres password in `DATABASE_URL`.
@@ -40,7 +40,3 @@
 
 Run all three SQL files again in the same order (schema, advanced, seed).
 
-## Notes
-
-- The first search by meaning downloads the embedding model (about 90 MB) once.
-- On Linux, if `npm install` fails fetching from nuget.org, run `ONNXRUNTIME_NODE_INSTALL=skip npm install`.
