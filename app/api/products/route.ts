@@ -1,8 +1,9 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import pool from "@/lib/db";
 import { getCurrentOrganizationId } from "@/lib/organization";
 import { escapeLike, handleRouteError, jsonError, readJson } from "@/lib/api";
 import { productInputSchema, productListQuerySchema } from "@/lib/validation/product";
+import { syncProductVectorQuietly } from "@/lib/product-vectors";
 
 // GET /api/products?q=laptop&category=Laptops&limit=20&offset=0
 // Lists this organization's products with their total and available stock
@@ -76,6 +77,11 @@ export async function POST(request: Request) {
     );
 
     const product = rows[0];
+
+    // Add the new product to Qdrant once the response has been sent, so
+    // embedding it never slows down or fails the save.
+    after(() => syncProductVectorQuietly(organizationId, product.product_id, "index"));
+
     return Response.json(product, {
       status: 201,
       headers: { Location: `/api/products/${product.product_id}` },

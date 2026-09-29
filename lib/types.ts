@@ -52,6 +52,29 @@ export interface ProductDetail extends Product {
   suppliers: ProductSupplier[];
 }
 
+/**
+ * A product found by vector search, with its cosine similarity score
+ * (1 = same meaning, 0 = unrelated).
+ */
+export interface ProductMatch extends ProductListItem {
+  score: number;
+}
+
+/** GET /api/products/search and GET /api/products/[id]/similar */
+export interface ProductMatchResponse {
+  data: ProductMatch[];
+}
+
+/** GET and POST /api/vector-index: how Qdrant compares with PostgreSQL. */
+export interface VectorIndexStatus {
+  products: number;
+  up_to_date: number;
+  stale: number;
+  missing: number;
+  orphaned: number;
+  orphaned_ids: number[];
+}
+
 export interface Producer {
   producer_id: number;
   name: string;

@@ -1,7 +1,9 @@
+import { after } from "next/server";
 import pool from "@/lib/db";
 import { getCurrentOrganizationId } from "@/lib/organization";
 import { handleRouteError, jsonError, parseId, readJson } from "@/lib/api";
 import { productInputSchema } from "@/lib/validation/product";
+import { syncProductVectorQuietly } from "@/lib/product-vectors";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -93,6 +95,10 @@ export async function PUT(request: Request, { params }: Context) {
     );
     if (rowCount === 0) return jsonError(404, "Product not found.");
 
+    // Re-embed in Qdrant after the response, since the name, category or
+    // description may have changed.
+    after(() => syncProductVectorQuietly(organizationId, id, "index"));
+
     return Response.json(rows[0]);
   } catch (err) {
     return handleRouteError(err);
@@ -113,6 +119,9 @@ export async function DELETE(_request: Request, { params }: Context) {
       [id, organizationId],
     );
     if (rowCount === 0) return jsonError(404, "Product not found.");
+
+    // The row is gone from PostgreSQL, so remove its vector from Qdrant too.
+    after(() => syncProductVectorQuietly(organizationId, id, "remove"));
 
     return new Response(null, { status: 204 });
   } catch (err) {

@@ -49,3 +49,15 @@ export const productListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+/** Query string for GET /api/products/search?q=&category=&limit= (search by meaning) */
+export const productSemanticSearchSchema = z.object({
+  q: z.string().trim().min(2, "Type at least 2 characters").max(300),
+  category: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+/** Query string for GET /api/products/[id]/similar?limit= */
+export const similarProductsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+});

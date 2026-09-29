@@ -8,6 +8,7 @@ import { formatDateTime, formatINR } from "@/lib/format";
 import type { ProductDetail } from "@/lib/types";
 import StockBadge from "@/components/StockBadge";
 import ProducerStatusBadge from "@/components/ProducerStatusBadge";
+import SimilarProducts from "@/components/SimilarProducts";
 
 interface LoadResult {
   id: string;
@@ -229,6 +230,8 @@ export default function ProductDetailPage() {
           </table>
         </div>
       )}
+
+      <SimilarProducts productId={p.product_id} />
     </div>
   );
 }
